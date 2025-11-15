@@ -62,3 +62,33 @@ export interface FlowRefundResponse {
   status: number;
 }
 
+export interface FlowTransactionsParams {
+  date: string; // Formato: YYYY-MM-DD
+  start?: number; // Número de registro de inicio (default: 0)
+  limit?: number; // Número de registros por página (default: 10, max: 100)
+}
+
+export interface FlowTransaction {
+  flowOrder: number;
+  commerceOrder: string;
+  requestDate: string;
+  status: number;
+  statusDate: string;
+  amount: number;
+  currency: string;
+  payer: string;
+  paymentData?: {
+    date: string;
+    media: number;
+    mediaName: string;
+    number: string;
+    receipt: string;
+  };
+}
+
+export interface FlowTransactionsResponse {
+  total: number;
+  hasMore: number;
+  data: FlowTransaction[];
+}
+

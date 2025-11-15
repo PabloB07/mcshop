@@ -7,16 +7,22 @@ import { supabase } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatPrice } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { useCheckout } from '@/hooks/useCheckout';
+
+interface User {
+  id: string;
+  email?: string;
+}
 
 export default function CheckoutPage() {
   const router = useRouter();
   const items = useCartStore((state) => state.items);
   const getTotal = useCartStore((state) => state.getTotal);
-  const clearCart = useCartStore((state) => state.clearCart);
+  const { checkout, loading, error: checkoutError } = useCheckout();
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const getUser = async () => {
@@ -31,9 +37,10 @@ export default function CheckoutPage() {
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setError(null);
+
     if (items.length === 0) {
-      alert('Tu carrito está vacío');
+      setError('Tu carrito está vacío');
       return;
     }
 
@@ -42,79 +49,12 @@ export default function CheckoutPage() {
       return;
     }
 
-    setLoading(true);
-
     try {
-      // Crear orden en Supabase
-      const orderId = `ORDER-${Date.now()}`;
-      const total = getTotal();
-
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          total,
-          status: 'pending',
-          commerce_order: orderId,
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Crear items de la orden
-      const orderItems = items.map((item) => ({
-        order_id: order.id,
-        product_id: item.product.id,
-        quantity: item.quantity,
-        price: item.product.price,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
-      // Crear orden de pago en Flow
-      const response = await fetch('/api/payment/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          commerceOrder: orderId,
-          subject: `Compra MCShop - ${orderId}`,
-          amount: total,
-          email: email,
-          urlReturn: `${window.location.origin}/checkout/success`,
-          urlConfirmation: `${window.location.origin}/api/payment/webhook`,
-        }),
-      });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(responseData.error || 'Error al crear el pago');
-      }
-
-      const paymentData = responseData;
-
-      // Actualizar orden con token de Flow
-      await supabase
-        .from('orders')
-        .update({
-          flow_token: paymentData.token,
-          flow_order: paymentData.flowOrder,
-        })
-        .eq('id', order.id);
-
-      // Redirigir a Flow
-      window.location.href = paymentData.url;
-    } catch (error: any) {
-      console.error('Error en checkout:', error);
-      alert('Error al procesar el pago: ' + error.message);
-      setLoading(false);
+      await checkout(email, user.id);
+      // Si checkout es exitoso, redirige a Flow (no llegamos aquí)
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error al procesar el pago';
+      setError(errorMessage);
     }
   };
 
@@ -149,11 +89,20 @@ export default function CheckoutPage() {
                     id="email"
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      setError(null);
+                    }}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
+                {(error || checkoutError) && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{error || checkoutError}</span>
+                  </div>
+                )}
                 <Button type="submit" disabled={loading} className="w-full" size="lg">
                   {loading ? (
                     <>

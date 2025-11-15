@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useCartStore } from '@/store/cart-store';
 import { Button } from '@/components/ui/button';
 import { Cart } from '@/components/cart';
@@ -57,8 +58,15 @@ export function Navbar() {
       <nav className="sticky top-0 z-30 bg-white border-b shadow-sm">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
-            <Link href="/" className="text-2xl font-bold text-primary-600 font-minecraft">
-              MCShop
+            <Link href="/" className="flex items-center">
+              <Image 
+                src="/logo-shopmc.png" 
+                alt="ShopMC" 
+                width={150}
+                height={60}
+                className="h-12 w-auto"
+                priority
+              />
             </Link>
 
             <div className="flex items-center gap-4">

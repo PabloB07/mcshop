@@ -4,27 +4,69 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils';
 import { getMinecraftAvatarUrl } from '@/lib/minecraft/api';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Download, Package, CreditCard } from 'lucide-react';
+import { useUserOrders } from '@/hooks/useUserOrders';
+import { useUserProducts } from '@/hooks/useUserProducts';
+import { useToast, ToastContainer } from '@/components/ui/toast';
 
 interface Order {
   id: string;
   total: number;
   status: string;
   commerce_order: string;
+  flow_token?: string;
+  flow_order?: number;
   created_at: string;
+}
+
+interface UserProduct {
+  id: string;
+  product_id: string;
+  order_id?: string;
+  license_id?: string;
+  purchased_at: string;
+  product: {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    plugin_version?: string;
+    minecraft_versions?: string[];
+  };
+  license?: {
+    id: string;
+    license_key: string;
+    status: string;
+  };
+}
+
+interface User {
+  id: string;
+  email?: string;
+  user_metadata?: {
+    minecraft_uuid?: string;
+    minecraft_username?: string;
+  };
 }
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
   const [minecraftAvatar, setMinecraftAvatar] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const { toasts, error: showError, removeToast } = useToast();
+
+  // Usar hooks personalizados
+  const { orders, loading: ordersLoading } = useUserOrders(user?.id || null);
+  const { userProducts, loading: productsLoading } = useUserProducts(user?.id || null);
+
+  const loading = ordersLoading || productsLoading;
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -39,25 +81,37 @@ export default function DashboardPage() {
         const avatar = getMinecraftAvatarUrl(user.user_metadata.minecraft_uuid, 128);
         setMinecraftAvatar(avatar);
       }
-
-      // Obtener órdenes del usuario
-      const { data: ordersData, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching orders:', error);
-      } else {
-        setOrders(ordersData || []);
-      }
-
-      setLoading(false);
     };
 
-    fetchData();
+    fetchUser();
   }, [router]);
+
+  const handleDownload = async (productId: string, productName: string) => {
+    setDownloading(productId);
+    try {
+      const response = await fetch('/api/downloads/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ product_id: productId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Error al generar URL de descarga');
+      }
+
+      // Abrir URL de descarga en nueva pestaña
+      window.open(data.download_url, '_blank');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      showError('Error al generar descarga: ' + errorMessage);
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -68,14 +122,99 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <h1 className="text-4xl font-bold mb-8">Mi Cuenta</h1>
+    <>
+      <ToastContainer toasts={toasts} onClose={removeToast} />
+      <div className="container mx-auto px-4 py-12">
+        <h1 className="text-4xl font-bold mb-8">Mi Cuenta</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-8">
+          {/* Mis Plugins */}
           <Card>
             <CardHeader>
-              <CardTitle>Mis Pedidos</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                Mis Plugins
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {userProducts.length === 0 ? (
+                <p className="text-gray-500">No has comprado ningún plugin aún.</p>
+              ) : (
+                <div className="space-y-4">
+                  {userProducts.map((userProduct) => (
+                    <div
+                      key={userProduct.id}
+                      className="border rounded-lg p-4 space-y-3"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg">
+                            {userProduct.product.name}
+                          </h3>
+                          {userProduct.product.plugin_version && (
+                            <p className="text-sm text-gray-500">
+                              Versión: {userProduct.product.plugin_version}
+                            </p>
+                          )}
+                          {userProduct.product.minecraft_versions && 
+                           userProduct.product.minecraft_versions.length > 0 && (
+                            <p className="text-sm text-gray-500">
+                              Minecraft: {userProduct.product.minecraft_versions.join(', ')}
+                            </p>
+                          )}
+                          {userProduct.license && (
+                            <div className="mt-2">
+                              <p className="text-xs text-gray-400 font-mono">
+                                Licencia: {userProduct.license.license_key}
+                              </p>
+                              <span
+                                className={`inline-block mt-1 px-2 py-1 text-xs rounded ${
+                                  userProduct.license.status === 'active'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {userProduct.license.status === 'active' ? 'Activa' : userProduct.license.status}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => handleDownload(userProduct.product.id, userProduct.product.name)}
+                          disabled={downloading === userProduct.product.id}
+                          className="flex items-center gap-2"
+                        >
+                          {downloading === userProduct.product.id ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Generando...
+                            </>
+                          ) : (
+                            <>
+                              <Download className="w-4 h-4" />
+                              Descargar
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Comprado el {new Date(userProduct.purchased_at).toLocaleDateString('es-CL')}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Mis Pedidos */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="w-5 h-5" />
+                Mis Pedidos
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {orders.length === 0 ? (
@@ -92,6 +231,11 @@ export default function DashboardPage() {
                         <p className="text-sm text-gray-500">
                           {new Date(order.created_at).toLocaleDateString('es-CL')}
                         </p>
+                        {order.flow_order && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Flow Order: {order.flow_order}
+                          </p>
+                        )}
                         <span
                           className={`inline-block mt-2 px-2 py-1 text-xs rounded ${
                             order.status === 'paid'
@@ -152,6 +296,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }
-

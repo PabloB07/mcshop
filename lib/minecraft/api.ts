@@ -1,6 +1,9 @@
 /**
  * Utilidades para interactuar con la API de Minecraft (Mojang)
  * API oficial: https://api.mojang.com
+ * 
+ * NOTA: Este archivo se usa tanto en cliente como servidor.
+ * No importar logger aquí para evitar problemas de bundling.
  */
 
 export interface MinecraftProfile {
@@ -66,8 +69,9 @@ export async function validateMinecraftUsername(
       valid: true,
       profile: data,
     };
-  } catch (error: any) {
-    console.error('Error validando usuario de Minecraft:', error);
+  } catch (error) {
+    // No loguear aquí ya que esta función se usa en el cliente
+    // El logging se hace en la API route si es necesario
     return {
       valid: false,
       error: 'Error al validar el nombre de usuario. Por favor intenta de nuevo.',
