@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createFlowAPI } from '@/lib/flow/api';
 import { parseFlowWebhookBody, extractFlowToken } from '@/lib/flow/webhook-parser';
 import { logAuditEvent, getRequestInfo } from '@/lib/audit-log';
@@ -256,8 +257,9 @@ export class WebhookService {
         return;
       }
 
-      // Obtener usuario
-      const { data: { user } } = await this.supabase.auth.getUserById(order.user_id);
+      // Obtener usuario usando admin client
+      const supabaseAdmin = createAdminClient();
+      const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
 
       for (const item of orderItems) {
         // Crear licencia

@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { createServerClient } from './server';
 
 /**
  * Verifica si un usuario es administrador
@@ -7,10 +6,10 @@ import { createServerClient } from './server';
  */
 export async function isUserAdmin(userId: string): Promise<boolean> {
   try {
-    const supabase = createServerClient();
+    const supabaseAdmin = createAdminClient();
     
-    // Obtener información del usuario
-    const { data: { user }, error } = await supabase.auth.getUserById(userId);
+    // Obtener información del usuario usando admin client
+    const { data: { user }, error } = await supabaseAdmin.auth.admin.getUserById(userId);
     
     if (error || !user) {
       return false;
