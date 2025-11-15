@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isUserAdmin } from '@/lib/supabase/admin';
 import { logAuditEvent, getRequestInfo } from '@/lib/audit-log';
+import { logger } from '@/lib/logger';
 
 /**
  * GET - Obtener versiones de un plugin

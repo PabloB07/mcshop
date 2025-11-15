@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { isUserAdmin } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger';
 
 /**
  * GET - Obtener logs de auditoría (solo admins)

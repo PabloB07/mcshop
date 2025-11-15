@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { logAuditEvent, getRequestInfo } from '@/lib/audit-log';
+import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
