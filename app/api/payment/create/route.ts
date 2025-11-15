@@ -13,6 +13,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validar que las credenciales de Flow estén configuradas
+    if (!process.env.FLOW_API_KEY || !process.env.FLOW_SECRET_KEY) {
+      console.error('Flow credentials not configured');
+      return NextResponse.json(
+        { error: 'Configuración de Flow no encontrada. Por favor verifica las variables de entorno.' },
+        { status: 500 }
+      );
+    }
+
     const flowAPI = createFlowAPI();
     const paymentData = await flowAPI.createPaymentOrder({
       commerceOrder,
@@ -27,8 +36,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(paymentData);
   } catch (error: any) {
     console.error('Error creating payment:', error);
+    console.error('Error stack:', error.stack);
+    
+    // Extraer mensaje de error más detallado
+    let errorMessage = 'Error al crear el pago';
+    
+    if (error.message) {
+      errorMessage = error.message;
+    } else if (error.response) {
+      errorMessage = `Error de Flow: ${error.response.status} - ${error.response.statusText}`;
+    } else if (typeof error === 'string') {
+      errorMessage = error;
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Error al crear el pago' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

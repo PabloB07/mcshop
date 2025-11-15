@@ -3,14 +3,21 @@ import crypto from 'crypto';
 /**
  * Firma los parámetros con la SecretKey de Flow
  * Los parámetros deben estar ordenados alfabéticamente
+ * IMPORTANTE: No incluir el parámetro 's' en la firma
  */
 export function signParams(params: Record<string, any>, secretKey: string): string {
-  // Ordenar parámetros alfabéticamente
-  const sortedKeys = Object.keys(params).sort();
+  // Filtrar el parámetro 's' si existe y ordenar alfabéticamente
+  const sortedKeys = Object.keys(params)
+    .filter(key => key !== 's') // Excluir el parámetro de firma
+    .sort();
   
-  // Concatenar parámetros
+  // Concatenar parámetros en formato: nombre=valor&nombre2=valor2
   const paramString = sortedKeys
-    .map(key => `${key}=${params[key]}`)
+    .map(key => {
+      const value = params[key];
+      // Convertir a string y asegurar que no sea undefined o null
+      return `${key}=${value !== undefined && value !== null ? String(value) : ''}`;
+    })
     .join('&');
   
   // Crear firma HMAC-SHA256

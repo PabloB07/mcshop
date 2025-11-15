@@ -14,30 +14,64 @@ export class FlowAPI {
    * Genera una orden de pago
    */
   async createPaymentOrder(order: FlowPaymentOrder): Promise<FlowPaymentResponse> {
+    // Validar que amount sea un número válido
+    const amount = Number(order.amount);
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error('El monto debe ser un número válido mayor a 0');
+    }
+
+    // Preparar parámetros base (sin apiKey ni firma aún)
+    const baseParams: Record<string, any> = {
+      commerceOrder: String(order.commerceOrder),
+      subject: String(order.subject),
+      currency: order.currency || 'CLP',
+      amount: Math.round(amount), // Flow espera números enteros (sin decimales para CLP)
+      email: String(order.email),
+    };
+
+    // Agregar parámetros opcionales solo si tienen valor
+    if (order.urlConfirmation) {
+      baseParams.urlConfirmation = order.urlConfirmation;
+    }
+    if (order.urlReturn) {
+      baseParams.urlReturn = order.urlReturn;
+    }
+    if (order.paymentMethod !== undefined) {
+      baseParams.paymentMethod = order.paymentMethod;
+    }
+    if (order.forward_days_after !== undefined) {
+      baseParams.forward_days_after = order.forward_days_after;
+    }
+    if (order.forward_days_after_type !== undefined) {
+      baseParams.forward_days_after_type = order.forward_days_after_type;
+    }
+    if (order.optional) {
+      Object.assign(baseParams, order.optional);
+    }
+
+    // Preparar parámetros con firma
     const params = prepareFlowParams(
-      {
-        commerceOrder: order.commerceOrder,
-        subject: order.subject,
-        currency: order.currency || 'CLP',
-        amount: order.amount,
-        email: order.email,
-        urlConfirmation: order.urlConfirmation,
-        urlReturn: order.urlReturn,
-        paymentMethod: order.paymentMethod,
-        forward_days_after: order.forward_days_after,
-        forward_days_after_type: order.forward_days_after_type,
-        ...order.optional,
-      },
+      baseParams,
       this.config.apiKey,
       this.config.secretKey
     );
 
+    // Crear formData solo con parámetros que tienen valor
     const formData = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
+      if (value !== undefined && value !== null && value !== '') {
         formData.append(key, String(value));
       }
     });
+
+    // Log para depuración (solo en desarrollo)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Flow API Request:', {
+        url: `${this.baseUrl}/payment/create`,
+        params: Object.fromEntries(formData.entries()),
+        environment: this.config.environment,
+      });
+    }
 
     const response = await fetch(`${this.baseUrl}/payment/create`, {
       method: 'POST',
@@ -47,12 +81,41 @@ export class FlowAPI {
       body: formData.toString(),
     });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Error desconocido' }));
-      throw new Error(error.message || `Error ${response.status}`);
+    const responseText = await response.text();
+    let errorData: any = { message: 'Error desconocido' };
+
+    try {
+      errorData = JSON.parse(responseText);
+    } catch {
+      // Si no es JSON, usar el texto como mensaje
+      errorData = { message: responseText || `Error ${response.status}` };
     }
 
-    return response.json();
+    if (!response.ok) {
+      console.error('Flow API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorData,
+        url: `${this.baseUrl}/payment/create`,
+      });
+      
+      // Mensajes de error más descriptivos según el código de estado
+      if (response.status === 400) {
+        throw new Error(errorData.message || 'Parámetros inválidos. Verifica los datos enviados.');
+      } else if (response.status === 401) {
+        throw new Error('Error de autenticación. Verifica tus credenciales de Flow (API Key y Secret Key).');
+      } else if (response.status === 403) {
+        throw new Error('Acceso denegado. Verifica los permisos de tu cuenta de Flow.');
+      } else {
+        throw new Error(errorData.message || errorData.error || `Error ${response.status}: ${response.statusText}`);
+      }
+    }
+
+    try {
+      return JSON.parse(responseText);
+    } catch {
+      throw new Error('Respuesta inválida de Flow API');
+    }
   }
 
   /**

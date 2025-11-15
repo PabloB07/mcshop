@@ -92,11 +92,13 @@ export default function CheckoutPage() {
         }),
       });
 
+      const responseData = await response.json();
+
       if (!response.ok) {
-        throw new Error('Error al crear el pago');
+        throw new Error(responseData.error || 'Error al crear el pago');
       }
 
-      const paymentData = await response.json();
+      const paymentData = responseData;
 
       // Actualizar orden con token de Flow
       await supabase
