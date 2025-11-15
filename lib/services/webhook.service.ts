@@ -186,8 +186,9 @@ export class WebhookService {
     if (paymentStatus.paymentData?.date) {
       logger.info('Pago exitoso detectado por paymentData', {
         date: paymentStatus.paymentData.date,
-        amount: paymentStatus.paymentData.amount,
+        amount: paymentStatus.amount,
         media: paymentStatus.paymentData.media,
+        mediaName: paymentStatus.paymentData.mediaName,
       });
       return 'paid';
     }
