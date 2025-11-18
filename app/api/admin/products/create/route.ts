@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
       suffix,
       weight,
       display_name,
+      rank_description,
       rank_permissions,
       rank_commands,
       // Campos específicos de items
@@ -108,7 +109,7 @@ export async function POST(request: NextRequest) {
           suffix,
           weight,
           display_name,
-          description,
+          description: rank_description || description,
           permissions: rank_permissions || [],
         })
         .select()

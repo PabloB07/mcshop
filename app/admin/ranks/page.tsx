@@ -112,7 +112,7 @@ export default function AdminRanksPage() {
           suffix: formData.suffix,
           weight: formData.weight ? parseInt(formData.weight) : undefined,
           display_name: formData.display_name,
-          description: formData.rank_description,
+          rank_description: formData.rank_description || formData.description,
           rank_permissions: permissionsArray,
         }),
       });
