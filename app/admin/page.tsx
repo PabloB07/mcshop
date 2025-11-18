@@ -16,21 +16,27 @@ export default function AdminPage() {
 
   useEffect(() => {
     const checkAdmin = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error } = await supabase.auth.getUser();
       
-      if (!user) {
+      if (error || !user) {
         router.push('/auth/login');
         return;
       }
 
       setUser(user);
       
-      // Verificar si es admin
-      const isUserAdmin = user.user_metadata?.is_admin === true || 
-                         user.user_metadata?.is_admin === 'true';
+      // Verificar si es admin - verificar tanto user_metadata como raw_user_meta_data
+      const isUserAdmin = 
+        user.user_metadata?.is_admin === true || 
+        user.user_metadata?.is_admin === 'true' ||
+        (user as any).raw_user_meta_data?.is_admin === true ||
+        (user as any).raw_user_meta_data?.is_admin === 'true';
       
       if (!isUserAdmin) {
-        router.push('/dashboard');
+        // Esperar un poco antes de redirigir para mostrar mensaje
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 2000);
         return;
       }
 
@@ -50,7 +56,22 @@ export default function AdminPage() {
   }
 
   if (!isAdmin) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto px-4">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Acceso Denegado</h2>
+          <p className="text-gray-600 mb-4">
+            No tienes permisos de administrador para acceder a esta página.
+          </p>
+          <p className="text-sm text-gray-500 mb-6">
+            Si crees que esto es un error, contacta al administrador del sistema.
+          </p>
+          <p className="text-xs text-gray-400 mt-4">
+            Redirigiendo al dashboard...
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
