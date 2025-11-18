@@ -1,6 +1,6 @@
-# MCShop - Ecommerce de Plugins para Minecraft
+# MCShop - Ecommerce de Plugins o Rangos para Minecraft
 
-Ecommerce moderno construido con Next.js 16, React 19, TypeScript, Tailwind CSS, Framer Motion, Supabase y Flow.cl API para vender plugins de servidores de Minecraft.
+Ecommerce moderno construido con Next.js 16, React 19, TypeScript, Tailwind CSS, Framer Motion, Supabase y Flow.cl API para vender plugins de servidores de Minecraft o rangos en el servidor.
 
 ## 🚀 Características
 
