@@ -5,8 +5,9 @@ import { createFlowAPI } from '@/lib/flow/api';
 import { parseFlowWebhookBody, extractFlowToken } from '@/lib/flow/webhook-parser';
 import { logAuditEvent, getRequestInfo } from '@/lib/audit-log';
 import { logger } from '@/lib/logger';
+import { MinecraftService } from './minecraft.service';
 import crypto from 'crypto';
-import type { Order } from '@/types/database';
+import type { Order, ProductType } from '@/types/database';
 import type { FlowPaymentStatus } from '@/lib/flow/types';
 
 type OrderStatus = 'pending' | 'paid' | 'cancelled' | 'rejected';
@@ -237,7 +238,7 @@ export class WebhookService {
   }
 
   /**
-   * Procesa una orden pagada: crea licencias, user_products y URLs de descarga
+   * Procesa una orden pagada: crea licencias, user_products, URLs de descarga, y aplica rangos/items/dinero
    */
   private async processPaidOrder(order: Order): Promise<void> {
     try {
@@ -261,22 +262,306 @@ export class WebhookService {
       const supabaseAdmin = createAdminClient();
       const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
 
+      const minecraftService = new MinecraftService();
+
       for (const item of orderItems) {
-        // Crear licencia
-        const license = await this.createLicense(order, item);
-        if (!license) continue;
+        const product = item.product as any;
+        const productType: ProductType = product?.product_type || 'plugin';
 
-        // Crear user_product
-        await this.createUserProduct(order, item, license.id);
+        // Procesar según el tipo de producto
+        switch (productType) {
+          case 'rank':
+            await this.processRankProduct(order, item, product, minecraftService);
+            break;
+          case 'item':
+            await this.processItemProduct(order, item, product, minecraftService);
+            break;
+          case 'money':
+            await this.processMoneyProduct(order, item, product, minecraftService);
+            break;
+          case 'plugin':
+          default:
+            // Procesar como plugin (licencia y descarga)
+            const license = await this.createLicense(order, item);
+            if (!license) continue;
 
-        // Generar URL de descarga
-        if (user?.email) {
-          await this.generateDownloadUrl(order, item, license.id, user.email);
+            await this.createUserProduct(order, item, license.id);
+
+            if (user?.email) {
+              await this.generateDownloadUrl(order, item, license.id, user.email);
+            }
+            break;
         }
       }
     } catch (error) {
       logger.error('Error procesando productos comprados', error);
       // No fallar el webhook si hay error aquí
+    }
+  }
+
+  /**
+   * Procesa un producto de tipo rango
+   */
+  private async processRankProduct(
+    order: Order,
+    item: any,
+    product: any,
+    minecraftService: MinecraftService
+  ): Promise<void> {
+    try {
+      // Obtener información de Minecraft del producto o de la orden
+      const minecraftUsername = product.minecraft_username || order.minecraft_username;
+      const minecraftUuid = product.minecraft_uuid || order.minecraft_uuid;
+
+      if (!minecraftUsername || !minecraftUuid) {
+        logger.error('Usuario de Minecraft no especificado para rango', {
+          orderId: order.id,
+          productId: product.id,
+        });
+        return;
+      }
+
+      // Obtener información del rango
+      const supabaseAdmin = createAdminClient();
+      const { data: rank, error: rankError } = await supabaseAdmin
+        .from('ranks')
+        .select('*')
+        .eq('product_id', product.id)
+        .single();
+
+      if (rankError || !rank) {
+        logger.error('Error obteniendo rango', rankError);
+        return;
+      }
+
+      // Obtener servidor (usar el primero activo si no está especificado)
+      const { data: servers } = await supabaseAdmin
+        .from('minecraft_servers')
+        .select('*')
+        .eq('active', true)
+        .limit(1);
+
+      if (!servers || servers.length === 0) {
+        logger.error('No hay servidores activos para aplicar rango');
+        return;
+      }
+
+      const server = servers[0];
+
+      // Crear orden de Minecraft
+      const minecraftOrder = await minecraftService.createMinecraftOrder(
+        order.id,
+        minecraftUsername,
+        minecraftUuid,
+        server.id
+      );
+
+      if (!minecraftOrder) {
+        logger.error('Error creando orden de Minecraft');
+        return;
+      }
+
+      // Aplicar rango
+      const result = await minecraftService.applyRank(
+        server.id,
+        minecraftUsername,
+        minecraftUuid,
+        rank,
+        minecraftOrder.id
+      );
+
+      if (result.success) {
+        await minecraftService.updateMinecraftOrderStatus(
+          minecraftOrder.id,
+          'applied'
+        );
+        logger.info('Rango aplicado exitosamente', {
+          orderId: order.id,
+          minecraftUsername,
+          rank: rank.luckperms_group,
+        });
+      } else {
+        await minecraftService.updateMinecraftOrderStatus(
+          minecraftOrder.id,
+          'failed',
+          result.error
+        );
+        logger.error('Error aplicando rango', {
+          orderId: order.id,
+          error: result.error,
+        });
+      }
+
+      // Crear user_product para tracking
+      await this.createUserProduct(order, item, null);
+    } catch (error) {
+      logger.error('Error procesando producto de rango', error);
+    }
+  }
+
+  /**
+   * Procesa un producto de tipo item
+   */
+  private async processItemProduct(
+    order: Order,
+    item: any,
+    product: any,
+    minecraftService: MinecraftService
+  ): Promise<void> {
+    try {
+      const minecraftUsername = product.minecraft_username || order.minecraft_username;
+      const minecraftUuid = product.minecraft_uuid || order.minecraft_uuid;
+
+      if (!minecraftUsername || !minecraftUuid) {
+        logger.error('Usuario de Minecraft no especificado para item', {
+          orderId: order.id,
+          productId: product.id,
+        });
+        return;
+      }
+
+      const supabaseAdmin = createAdminClient();
+      const { data: gameItem, error: itemError } = await supabaseAdmin
+        .from('game_items')
+        .select('*')
+        .eq('product_id', product.id)
+        .single();
+
+      if (itemError || !gameItem) {
+        logger.error('Error obteniendo item del juego', itemError);
+        return;
+      }
+
+      const { data: servers } = await supabaseAdmin
+        .from('minecraft_servers')
+        .select('*')
+        .eq('active', true)
+        .limit(1);
+
+      if (!servers || servers.length === 0) {
+        logger.error('No hay servidores activos para aplicar item');
+        return;
+      }
+
+      const server = servers[0];
+      const minecraftOrder = await minecraftService.createMinecraftOrder(
+        order.id,
+        minecraftUsername,
+        minecraftUuid,
+        server.id
+      );
+
+      if (!minecraftOrder) {
+        logger.error('Error creando orden de Minecraft');
+        return;
+      }
+
+      const result = await minecraftService.applyItems(
+        server.id,
+        minecraftUsername,
+        minecraftUuid,
+        gameItem,
+        minecraftOrder.id
+      );
+
+      if (result.success) {
+        await minecraftService.updateMinecraftOrderStatus(minecraftOrder.id, 'applied');
+        logger.info('Item aplicado exitosamente', { orderId: order.id, minecraftUsername });
+      } else {
+        await minecraftService.updateMinecraftOrderStatus(
+          minecraftOrder.id,
+          'failed',
+          result.error
+        );
+        logger.error('Error aplicando item', { orderId: order.id, error: result.error });
+      }
+
+      await this.createUserProduct(order, item, null);
+    } catch (error) {
+      logger.error('Error procesando producto de item', error);
+    }
+  }
+
+  /**
+   * Procesa un producto de tipo dinero
+   */
+  private async processMoneyProduct(
+    order: Order,
+    item: any,
+    product: any,
+    minecraftService: MinecraftService
+  ): Promise<void> {
+    try {
+      const minecraftUsername = product.minecraft_username || order.minecraft_username;
+      const minecraftUuid = product.minecraft_uuid || order.minecraft_uuid;
+
+      if (!minecraftUsername || !minecraftUuid) {
+        logger.error('Usuario de Minecraft no especificado para dinero', {
+          orderId: order.id,
+          productId: product.id,
+        });
+        return;
+      }
+
+      const supabaseAdmin = createAdminClient();
+      const { data: gameMoney, error: moneyError } = await supabaseAdmin
+        .from('game_money')
+        .select('*')
+        .eq('product_id', product.id)
+        .single();
+
+      if (moneyError || !gameMoney) {
+        logger.error('Error obteniendo dinero del juego', moneyError);
+        return;
+      }
+
+      const { data: servers } = await supabaseAdmin
+        .from('minecraft_servers')
+        .select('*')
+        .eq('active', true)
+        .limit(1);
+
+      if (!servers || servers.length === 0) {
+        logger.error('No hay servidores activos para aplicar dinero');
+        return;
+      }
+
+      const server = servers[0];
+      const minecraftOrder = await minecraftService.createMinecraftOrder(
+        order.id,
+        minecraftUsername,
+        minecraftUuid,
+        server.id
+      );
+
+      if (!minecraftOrder) {
+        logger.error('Error creando orden de Minecraft');
+        return;
+      }
+
+      const result = await minecraftService.applyMoney(
+        server.id,
+        minecraftUsername,
+        minecraftUuid,
+        gameMoney,
+        minecraftOrder.id
+      );
+
+      if (result.success) {
+        await minecraftService.updateMinecraftOrderStatus(minecraftOrder.id, 'applied');
+        logger.info('Dinero aplicado exitosamente', { orderId: order.id, minecraftUsername });
+      } else {
+        await minecraftService.updateMinecraftOrderStatus(
+          minecraftOrder.id,
+          'failed',
+          result.error
+        );
+        logger.error('Error aplicando dinero', { orderId: order.id, error: result.error });
+      }
+
+      await this.createUserProduct(order, item, null);
+    } catch (error) {
+      logger.error('Error procesando producto de dinero', error);
     }
   }
 
@@ -309,7 +594,7 @@ export class WebhookService {
   /**
    * Crea un user_product
    */
-  private async createUserProduct(order: Order, item: any, licenseId: string): Promise<void> {
+  private async createUserProduct(order: Order, item: any, licenseId: string | null): Promise<void> {
     const { error: userProductError } = await this.supabase
       .from('user_products')
       .insert({

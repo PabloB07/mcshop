@@ -1,3 +1,5 @@
+export type ProductType = 'plugin' | 'rank' | 'item' | 'money';
+
 export interface Product {
   id: string;
   name: string;
@@ -14,6 +16,9 @@ export interface Product {
   minecraft_versions?: string[];
   author?: string;
   changelog?: string;
+  product_type?: ProductType;
+  minecraft_username?: string;
+  minecraft_uuid?: string;
   created_at: string;
   updated_at: string;
   active: boolean;
@@ -27,6 +32,8 @@ export interface Order {
   flow_token?: string;
   flow_order?: number;
   commerce_order: string;
+  minecraft_username?: string;
+  minecraft_uuid?: string;
   created_at: string;
   updated_at: string;
 }
@@ -104,6 +111,96 @@ export interface PluginVersion {
   changelog?: string;
   is_active: boolean;
   release_date: string;
+  created_at: string;
+}
+
+export interface MinecraftServer {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  api_key: string;
+  api_secret: string;
+  rcon_host?: string;
+  rcon_port?: number;
+  rcon_password?: string;
+  webhook_url?: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Rank {
+  id: string;
+  product_id: string;
+  luckperms_group: string;
+  priority: number;
+  prefix?: string;
+  suffix?: string;
+  weight?: number;
+  display_name?: string;
+  description?: string;
+  permissions?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RankCommand {
+  id: string;
+  rank_id: string;
+  command: string;
+  command_type: 'luckperms' | 'console' | 'player';
+  execution_order: number;
+  server_id?: string;
+  created_at: string;
+}
+
+export interface GameItem {
+  id: string;
+  product_id: string;
+  item_type: string;
+  item_id?: string;
+  item_data?: string;
+  quantity: number;
+  commands?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GameMoney {
+  id: string;
+  product_id: string;
+  amount: number;
+  currency_type: 'vault' | 'playerpoints' | 'custom';
+  command?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MinecraftOrder {
+  id: string;
+  order_id: string;
+  minecraft_username: string;
+  minecraft_uuid: string;
+  server_id?: string;
+  status: 'pending' | 'applied' | 'failed' | 'retrying';
+  error_message?: string;
+  applied_at?: string;
+  retry_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExecutedCommand {
+  id: string;
+  minecraft_order_id: string;
+  server_id?: string;
+  command: string;
+  command_type: string;
+  status: 'pending' | 'success' | 'failed';
+  response?: string;
+  error_message?: string;
+  executed_at?: string;
   created_at: string;
 }
 

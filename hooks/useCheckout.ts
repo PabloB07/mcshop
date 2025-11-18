@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { validateEmail } from '@/lib/validators';
 
 interface UseCheckoutReturn {
-  checkout: (email: string, userId: string) => Promise<void>;
+  checkout: (email: string, userId: string, minecraftUsername?: string, minecraftUuid?: string | null) => Promise<void>;
   loading: boolean;
   error: string | null;
 }
@@ -20,7 +20,7 @@ export function useCheckout(): UseCheckoutReturn {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const checkout = async (email: string, userId: string): Promise<void> => {
+  const checkout = async (email: string, userId: string, minecraftUsername?: string, minecraftUuid?: string | null): Promise<void> => {
     setLoading(true);
     setError(null);
 
@@ -51,6 +51,8 @@ export function useCheckout(): UseCheckoutReturn {
           total,
           status: 'pending',
           commerce_order: `ORDER-${Date.now()}`,
+          minecraft_username: minecraftUsername || null,
+          minecraft_uuid: minecraftUuid || null,
         })
         .select()
         .single();

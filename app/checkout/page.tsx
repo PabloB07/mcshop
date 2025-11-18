@@ -9,6 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatPrice } from '@/lib/utils';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { useCheckout } from '@/hooks/useCheckout';
+import { MinecraftUsernameInput } from '@/components/minecraft-username-input';
+import type { ProductType } from '@/types/database';
 
 interface User {
   id: string;
@@ -23,6 +25,17 @@ export default function CheckoutPage() {
   const [email, setEmail] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [minecraftUsername, setMinecraftUsername] = useState('');
+  const [minecraftUuid, setMinecraftUuid] = useState<string | null>(null);
+  const [minecraftValid, setMinecraftValid] = useState(false);
+
+  // Verificar si hay productos que requieren usuario de Minecraft
+  const needsMinecraftUser = items.some(
+    (item) => 
+      item.product.product_type === 'rank' || 
+      item.product.product_type === 'item' || 
+      item.product.product_type === 'money'
+  );
 
   useEffect(() => {
     const getUser = async () => {
@@ -49,8 +62,14 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Validar usuario de Minecraft si es necesario
+    if (needsMinecraftUser && (!minecraftValid || !minecraftUuid)) {
+      setError('Por favor ingresa un usuario de Minecraft válido');
+      return;
+    }
+
     try {
-      await checkout(email, user.id);
+      await checkout(email, user.id, minecraftUsername, minecraftUuid);
       // Si checkout es exitoso, redirige a Flow (no llegamos aquí)
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Error al procesar el pago';
@@ -97,6 +116,27 @@ export default function CheckoutPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
+                {needsMinecraftUser && (
+                  <div>
+                    <MinecraftUsernameInput
+                      value={minecraftUsername}
+                      onChange={(value) => {
+                        setMinecraftUsername(value);
+                        setError(null);
+                      }}
+                      onValidationChange={(valid, uuid) => {
+                        setMinecraftValid(valid);
+                        setMinecraftUuid(uuid || null);
+                      }}
+                      required
+                      label="Usuario de Minecraft"
+                      placeholder="Ingresa el nombre de usuario de Minecraft"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Este usuario recibirá el rango/item/dinero en el servidor
+                    </p>
+                  </div>
+                )}
                 {(error || checkoutError) && (
                   <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />

@@ -31,7 +31,7 @@ export default async function HomePage() {
           Bienvenido a MCShop
         </h1>
         <p className="text-xl text-gray-600 mb-8">
-          La mejor tienda de plugins para servidores de Minecraft
+          La mejor tienda para tu servidor de Minecraft: Rangos, Items, Dinero y Plugins
         </p>
         <Link href="/products">
           <Button size="lg">Explorar Productos</Button>
@@ -55,7 +55,19 @@ export default async function HomePage() {
 
       <section className="bg-white rounded-lg shadow-lg p-8 text-center">
         <h2 className="text-2xl font-bold mb-4">¿Por qué elegir MCShop?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-8">
+          <div>
+            <h3 className="font-semibold mb-2">Rangos y Permisos</h3>
+            <p className="text-gray-600">
+              Vende rangos con integración automática de LuckPerms
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold mb-2">Items y Dinero</h3>
+            <p className="text-gray-600">
+              Vende items del juego y dinero con comandos personalizados
+            </p>
+          </div>
           <div>
             <h3 className="font-semibold mb-2">Plugins de Calidad</h3>
             <p className="text-gray-600">
@@ -63,15 +75,9 @@ export default async function HomePage() {
             </p>
           </div>
           <div>
-            <h3 className="font-semibold mb-2">Soporte Incluido</h3>
+            <h3 className="font-semibold mb-2">Aplicación Automática</h3>
             <p className="text-gray-600">
-              Recibe ayuda cuando la necesites
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold mb-2">Actualizaciones Gratuitas</h3>
-            <p className="text-gray-600">
-              Mantén tus plugins siempre actualizados
+              Los productos se aplican automáticamente al pagar
             </p>
           </div>
         </div>
