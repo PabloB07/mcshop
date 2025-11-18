@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
       {
         server: {
           ...server,
-          api_secret, // Mostrar solo en la creación
+          api_secret: apiSecret, // Mostrar solo en la creación
         },
       },
       { status: 201 }
