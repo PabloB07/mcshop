@@ -19,12 +19,20 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
+      logger.error('Error de autenticación en crear producto', { error: authError });
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const userIsAdmin = await isUserAdmin(user.id);
     if (!userIsAdmin) {
-      return NextResponse.json({ error: 'Solo administradores' }, { status: 403 });
+      logger.warn('Intento de crear producto sin permisos de admin', { 
+        userId: user.id,
+        email: user.email,
+        user_metadata: user.user_metadata,
+      });
+      return NextResponse.json({ 
+        error: 'Solo administradores pueden crear productos. Verifica que tu cuenta tenga is_admin: true en Supabase.' 
+      }, { status: 403 });
     }
 
     const body = await request.json();
